@@ -1,33 +1,53 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Home, Heart, Map, User, Bell } from 'lucide-react-native'; // 👈 Map icon එක මෙතැන තියෙනවද බලන්න
+import { colors } from '../../constants/colors';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: '#8e8e93',
+        tabBarStyle: {
+          borderTopWidth: 0,
+          elevation: 10,
+          height: 60,
+          paddingBottom: 10,
+          backgroundColor: '#ffffff',
+        },
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
         }}
       />
+
+      {/* 🗺️ මෙන්න මේ Map පේජ් එකේ නම (map) සහ icon එක පරීක්ෂා කරන්න */}
       <Tabs.Screen
-        name="explore"
+        name="map" // 👈 ඔයාගේ file එකේ නම map.tsx නම් මෙතැන "map" විය යුතුයි
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Map',
+          tabBarIcon: ({ color, size }) => <Map size={size} color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
+        name="favorites"
+        options={{
+          title: 'Favorites',
+          tabBarIcon: ({ color, size }) => <Heart size={size} color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
         }}
       />
     </Tabs>
