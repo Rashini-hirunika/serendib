@@ -1,174 +1,932 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { 
-  Mail, 
-  Heart, 
-  Settings, 
-  LogOut, 
-  ChevronRight, 
-  Bell, 
-  ShieldCheck, 
-  Globe 
-} from 'lucide-react-native';
-import { colors } from '../../constants/colors';
-import { useFavorites } from '../../contexts/FavoritesContext';
-import { useLanguage } from '../../contexts/LanguageContext';
-import { useUser } from '../../contexts/UserContext'; // 👈 වැදගත්
+import React, { useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Animated,
+  Image,
+} from "react-native";
+import {
+  Settings,
+  Bell,
+  Shield,
+  HelpCircle,
+  ChevronRight,
+  LogOut,
+  Heart,
+  MapPin,
+  Star,
+  UserRound,
+  Plane,
+  Sparkles,
+} from "lucide-react-native";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 
-export default function ProfileScreen() {
+import { auth } from "@/config/firebase";
+import { signOut } from "firebase/auth";
+import { useFavorites } from "@/contexts/FavoritesContext";
+import { useUser } from "@/contexts/UserContext";
+
+const GREEN = "#1A5F3F";
+const DARK_GREEN = "#103D2B";
+const LIGHT_GREEN = "#EAF4EE";
+const ORANGE = "#E48A32";
+const BG = "#F4F7F5";
+const TEXT = "#24322C";
+const MUTED = "#84908A";
+const ERROR = "#E45868";
+
+const SETTINGS_ITEMS = [
+  {
+    id: "settings",
+    icon: Settings,
+    label: "Settings",
+    description: "Manage your app preferences",
+  },
+  {
+    id: "notifications",
+    icon: Bell,
+    label: "Notifications",
+    description: "Manage alerts and updates",
+  },
+  {
+    id: "privacy",
+    icon: Shield,
+    label: "Privacy & Security",
+    description: "Account and security settings",
+  },
+  {
+    id: "help",
+    icon: HelpCircle,
+    label: "Help & Support",
+    description: "Get help using Serendib",
+  },
+];
+
+export default function SerendibProfile() {
   const router = useRouter();
   const { favorites } = useFavorites();
-  const { language, setLanguage } = useLanguage();
-  const { user, setUser } = useUser(); // 👈 Context එකෙන් දත්ත ගන්නවා
+  const { user } = useUser();
+  const avatarScale = useRef(new Animated.Value(1)).current;
+  const avatarOpacity = useRef(new Animated.Value(1)).current;
+  const [avatarIndex, setAvatarIndex] = useState(0);
+  const [avatarError, setAvatarError] = useState(false);
 
-  const handleLogout = () => {
-    setUser(null); // Logout වෙනවිට දත්ත Clear කරයි
-    router.replace('/auth/signin');
+  const avatarSeed = encodeURIComponent(user?.email || user?.name || "SerendibTraveler");
+  const travelerAvatars = [
+    `https://api.dicebear.com/9.x/adventurer/png?seed=${avatarSeed}-1&backgroundColor=d1fae5`,
+    `https://api.dicebear.com/9.x/adventurer/png?seed=${avatarSeed}-2&backgroundColor=fef3c7`,
+    `https://api.dicebear.com/9.x/adventurer/png?seed=${avatarSeed}-3&backgroundColor=dbeafe`,
+    `https://api.dicebear.com/9.x/adventurer/png?seed=${avatarSeed}-4&backgroundColor=fce7f3`,
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      Animated.timing(avatarOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => {
+        setAvatarError(false);
+        setAvatarIndex((current) => (current + 1) % travelerAvatars.length);
+        avatarScale.setValue(0.88);
+
+        Animated.parallel([
+          Animated.spring(avatarScale, {
+            toValue: 1,
+            friction: 5,
+            tension: 70,
+            useNativeDriver: true,
+          }),
+          Animated.timing(avatarOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      });
+    }, 6000);
+
+    return () => clearInterval(interval);
+  }, [avatarOpacity, avatarScale, travelerAvatars.length]);
+
+  const handleSignOut = () => {
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out of Serendib?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Sign Out",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await signOut(auth);
+              router.replace("/auth/signin");
+            } catch (error) {
+              console.log("SIGN OUT ERROR:", error);
+
+              Alert.alert(
+                "Error",
+                "Could not sign out. Please try again."
+              );
+            }
+          },
+        },
+      ]
+    );
   };
 
-  // User ලොග් වී නැතිනම් පෙන්වන UI එක
   if (!user) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.userName}>Please Sign In</Text>
-        <TouchableOpacity 
-          style={[styles.loginBtn, {marginTop: 20}]} 
-          onPress={() => router.replace('/auth/signin')}
+      <SafeAreaView style={styles.guestScreen}>
+        <StatusBar style="light" />
+
+        <LinearGradient
+          colors={[DARK_GREEN, GREEN, "#2E8B57"]}
+          style={styles.guestGradient}
         >
-          <Text style={{color: '#fff', fontWeight: 'bold'}}>Go to Login</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.guestLogo}>
+            <Plane size={34} color="#FFFFFF" />
+          </View>
+
+          <Text style={styles.guestBrand}>SERENDIB</Text>
+
+          <Text style={styles.guestSubtitle}>
+            Discover the beauty of Sri Lanka
+          </Text>
+
+          <View style={styles.guestCard}>
+            <View style={styles.guestAvatar}>
+              <UserRound size={42} color={GREEN} />
+            </View>
+
+            <Text style={styles.guestTitle}>
+              Welcome Traveler
+            </Text>
+
+            <Text style={styles.guestDescription}>
+              Sign in to save destinations, manage your travel plan and personalize your journey.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.loginBtn}
+              onPress={() => router.push("/auth/signin")}
+            >
+              <Text style={styles.loginBtnText}>
+                Sign In
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header Section */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profile</Text>
-      </View>
+    <SafeAreaView
+      style={styles.screen}
+      edges={["top"]}
+    >
+      <StatusBar style="light" />
 
-      {/* User Info Card - 🚀 Auto Update වන කොටස */}
-      <View style={styles.profileCard}>
-        <Image 
-          source={{ uri: user.profilePic || "https://images.unsplash.com/photo-1633332755192-727a05c4013d" }} 
-          style={styles.avatar} 
-        />
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>{user.name}</Text>
-          <View style={styles.emailRow}>
-            <Mail size={14} color={colors.textLight} />
-            <Text style={styles.userEmail}>{user.email}</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <LinearGradient
+          colors={[DARK_GREEN, GREEN, "#2E8B57"]}
+          style={styles.header}
+        >
+          <View style={styles.headerCircleOne} />
+          <View style={styles.headerCircleTwo} />
+
+          <View style={styles.headerTop}>
+            <View>
+              <View style={styles.headerBrandRow}>
+                <Sparkles
+                  size={13}
+                  color="#F5BD62"
+                />
+
+                <Text style={styles.headerEyebrow}>
+                  YOUR SERENDIB PROFILE
+                </Text>
+              </View>
+
+              <Text style={styles.headerTitle}>
+                My Profile
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.settingsBtn}
+            >
+              <Settings
+                size={21}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.headerSubtitle}>
+            Manage your travel journey
+          </Text>
+        </LinearGradient>
+
+        <View style={styles.profileCard}>
+          <View style={styles.avatarWrap}>
+            <Animated.View
+              style={{
+                opacity: avatarOpacity,
+                transform: [{ scale: avatarScale }],
+              }}
+            >
+              <LinearGradient
+                colors={["#EAF4EE", "#D9EEE2"]}
+                style={styles.avatar}
+              >
+                {!avatarError ? (
+                  <Image
+                    source={{ uri: travelerAvatars[avatarIndex] }}
+                    style={styles.profileImage}
+                    resizeMode="cover"
+                    onError={() => setAvatarError(true)}
+                  />
+                ) : (
+                  <UserRound size={48} color={GREEN} />
+                )}
+              </LinearGradient>
+            </Animated.View>
+
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusEmoji}>
+                🌴
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.userName}>
+            {user.name || "Traveler"}
+          </Text>
+
+          <Text style={styles.userEmail}>
+            {user.email}
+          </Text>
+
+          <View style={styles.locationChip}>
+            <MapPin
+              size={14}
+              color={GREEN}
+            />
+
+            <Text style={styles.locationText}>
+              Sri Lanka
+            </Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.editBtn}>
-          <Settings size={20} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
 
-      {/* Stats Section */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>{favorites.length}</Text>
-          <Text style={styles.statLabel}>Favorites</Text>
-        </View>
-        <View style={[styles.statBox, styles.statBorder]}>
-          <Text style={styles.statNumber}>12</Text>
-          <Text style={styles.statLabel}>Places Visited</Text>
-        </View>
-      </View>
+        <View style={styles.statsRow}>
+          <View style={styles.statBox}>
+            <View style={styles.statIconGreen}>
+              <Heart
+                size={22}
+                color={GREEN}
+              />
+            </View>
 
-      {/* Settings Menu */}
-      <View style={styles.menuSection}>
-        <Text style={styles.menuTitle}>Account Settings</Text>
-        
-        <MenuOption 
-          icon={<Heart size={22} color="#ff4757" />} 
-          title="My Favorites" 
-          onPress={() => router.push('/(tabs)/favorites')} 
-        />
-        
-        <MenuOption 
-          icon={<Bell size={22} color="#ffa502" />} 
-          title="Notifications" 
-          onPress={() => {}} 
-        />
+            <Text style={styles.statNum}>
+              {favorites.length}
+            </Text>
 
-        <View style={styles.menuItem}>
-          <View style={styles.menuLeft}>
-            <Globe size={22} color={colors.primary} />
-            <Text style={styles.menuText}>Language ({language.toUpperCase()})</Text>
+            <Text style={styles.statLabel}>
+              Favorites
+            </Text>
           </View>
-          <TouchableOpacity 
-            onPress={() => setLanguage(language === 'en' ? 'si' : 'en')}
-            style={styles.langToggle}
+
+          <View style={styles.statBox}>
+            <View style={styles.statIconGreen}>
+              <MapPin
+                size={22}
+                color={GREEN}
+              />
+            </View>
+
+            <Text style={styles.statNum}>
+              3
+            </Text>
+
+            <Text style={styles.statLabel}>
+              Visited
+            </Text>
+          </View>
+
+          <View style={styles.statBox}>
+            <View style={styles.statIconOrange}>
+              <Star
+                size={22}
+                color={ORANGE}
+              />
+            </View>
+
+            <Text style={styles.statNum}>
+              12
+            </Text>
+
+            <Text style={styles.statLabel}>
+              Reviews
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              Account
+            </Text>
+
+            <Text style={styles.sectionSubtitle}>
+              Manage your profile and preferences
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.menuCard}>
+          {SETTINGS_ITEMS.map((item, index) => {
+            const Icon = item.icon;
+
+            return (
+              <TouchableOpacity
+                key={item.id}
+                activeOpacity={0.75}
+                style={[
+                  styles.menuItem,
+                  index === SETTINGS_ITEMS.length - 1 &&
+                    styles.menuItemLast,
+                ]}
+              >
+                <View style={styles.menuLeft}>
+                  <View style={styles.menuIconBox}>
+                    <Icon
+                      size={20}
+                      color={GREEN}
+                    />
+                  </View>
+
+                  <View style={styles.menuTextContainer}>
+                    <Text style={styles.menuLabel}>
+                      {item.label}
+                    </Text>
+
+                    <Text style={styles.menuDescription}>
+                      {item.description}
+                    </Text>
+                  </View>
+                </View>
+
+                <ChevronRight
+                  size={20}
+                  color="#A5AEA9"
+                />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={styles.travelCard}>
+          <LinearGradient
+            colors={["#103D2B", "#1A5F3F"]}
+            style={styles.travelGradient}
           >
-            <Text style={styles.langText}>{language === 'en' ? 'සිංහල' : 'English'}</Text>
-          </TouchableOpacity>
+            <View style={styles.travelIcon}>
+              <Plane
+                size={24}
+                color="#FFFFFF"
+              />
+            </View>
+
+            <View style={styles.travelInfo}>
+              <Text style={styles.travelLabel}>
+                SERENDIB TRAVELER
+              </Text>
+
+              <Text style={styles.travelTitle}>
+                Keep exploring Sri Lanka
+              </Text>
+
+              <Text style={styles.travelDescription}>
+                Discover new destinations and create unforgettable memories.
+              </Text>
+            </View>
+          </LinearGradient>
         </View>
-      </View>
 
-      <View style={styles.menuSection}>
-        <Text style={styles.menuTitle}>Support & Legal</Text>
-        <MenuOption icon={<ShieldCheck size={22} color="#2ed573" />} title="Privacy Policy" onPress={() => {}} />
-        
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <LogOut size={22} color="#ff4757" />
-          <Text style={styles.logoutText}>Logout</Text>
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          activeOpacity={0.8}
+          onPress={handleSignOut}
+        >
+          <View style={styles.logoutIcon}>
+            <LogOut
+              size={19}
+              color={ERROR}
+            />
+          </View>
+
+          <View style={styles.logoutContent}>
+            <Text style={styles.logoutText}>
+              Sign Out
+            </Text>
+
+            <Text style={styles.logoutDescription}>
+              Sign out from your Serendib account
+            </Text>
+          </View>
+
+          <ChevronRight
+            size={20}
+            color="#D59CA3"
+          />
         </TouchableOpacity>
-      </View>
 
-      <Text style={styles.versionText}>Serendib v1.0.0</Text>
-    </ScrollView>
+        <Text style={styles.versionText}>
+          Serendib • Explore Sri Lanka
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const MenuOption = ({ icon, title, onPress }: any) => (
-  <TouchableOpacity style={styles.menuItem} onPress={onPress}>
-    <View style={styles.menuLeft}>
-      {icon}
-      <Text style={styles.menuText}>{title}</Text>
-    </View>
-    <ChevronRight size={20} color={colors.textLight} />
-  </TouchableOpacity>
-);
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { padding: 20, paddingTop: 60, backgroundColor: colors.white },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: colors.text },
+  screen: {
+    flex: 1,
+    backgroundColor: BG,
+  },
+
+  scrollContent: {
+    paddingBottom: 130,
+  },
+
+  header: {
+    height: 235,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    borderBottomLeftRadius: 38,
+    borderBottomRightRadius: 38,
+    overflow: "hidden",
+  },
+
+  headerCircleOne: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    right: -80,
+    top: -70,
+  },
+
+  headerCircleTwo: {
+    position: "absolute",
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    left: -50,
+    bottom: -40,
+  },
+
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  headerBrandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  headerEyebrow: {
+    color: "#F5BD62",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    marginLeft: 5,
+  },
+
+  headerTitle: {
+    color: "#FFFFFF",
+    fontSize: 32,
+    fontWeight: "800",
+    marginTop: 5,
+  },
+
+  headerSubtitle: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    marginTop: 7,
+  },
+
+  settingsBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
   profileCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white,
-    margin: 20, padding: 20, borderRadius: 20, elevation: 4,
+    marginHorizontal: 20,
+    marginTop: -70,
+    padding: 23,
+    borderRadius: 27,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    elevation: 9,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
   },
-  avatar: { width: 70, height: 70, borderRadius: 35 },
-  userInfo: { flex: 1, marginLeft: 15 },
-  userName: { fontSize: 18, fontWeight: 'bold', color: colors.text },
-  emailRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
-  userEmail: { fontSize: 14, color: colors.textLight },
-  editBtn: { padding: 10, backgroundColor: colors.background, borderRadius: 12 },
-  statsContainer: {
-    flexDirection: 'row', backgroundColor: colors.white,
-    marginHorizontal: 20, borderRadius: 15, padding: 15,
+
+  avatarWrap: {
+    position: "relative",
   },
-  statBox: { flex: 1, alignItems: 'center' },
-  statBorder: { borderLeftWidth: 1, borderLeftColor: colors.border },
-  statNumber: { fontSize: 20, fontWeight: 'bold', color: colors.primary },
-  statLabel: { fontSize: 12, color: colors.textLight, marginTop: 4 },
-  menuSection: { marginTop: 25, paddingHorizontal: 20 },
-  menuTitle: { fontSize: 14, fontWeight: 'bold', color: colors.textLight, marginBottom: 10, textTransform: 'uppercase' },
+
+  avatar: {
+    width: 94,
+    height: 94,
+    borderRadius: 47,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+
+  profileImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 47,
+  },
+
+  statusBadge: {
+    position: "absolute",
+    width: 34,
+    height: 34,
+    right: -3,
+    bottom: -2,
+    borderRadius: 17,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 3,
+    borderColor: BG,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  statusEmoji: {
+    fontSize: 16,
+  },
+
+  userName: {
+    marginTop: 15,
+    color: TEXT,
+    fontSize: 23,
+    fontWeight: "800",
+  },
+
+  userEmail: {
+    marginTop: 4,
+    color: MUTED,
+    fontSize: 13,
+  },
+
+  locationChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: LIGHT_GREEN,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 15,
+    marginTop: 13,
+  },
+
+  locationText: {
+    marginLeft: 5,
+    color: GREEN,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  statsRow: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginTop: 18,
+    gap: 10,
+  },
+
+  statBox: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 21,
+    paddingVertical: 17,
+    alignItems: "center",
+    elevation: 2,
+  },
+
+  statIconGreen: {
+    width: 45,
+    height: 45,
+    borderRadius: 15,
+    backgroundColor: LIGHT_GREEN,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  statIconOrange: {
+    width: 45,
+    height: 45,
+    borderRadius: 15,
+    backgroundColor: "#FFF3E4",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  statNum: {
+    color: TEXT,
+    fontSize: 20,
+    fontWeight: "900",
+    marginTop: 10,
+  },
+
+  statLabel: {
+    color: MUTED,
+    fontSize: 11,
+    marginTop: 2,
+  },
+
+  sectionHeader: {
+    paddingHorizontal: 20,
+    marginTop: 29,
+    marginBottom: 13,
+  },
+
+  sectionTitle: {
+    color: TEXT,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+
+  sectionSubtitle: {
+    color: MUTED,
+    fontSize: 11,
+    marginTop: 3,
+  },
+
+  menuCard: {
+    marginHorizontal: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 23,
+    overflow: "hidden",
+    elevation: 2,
+  },
+
   menuItem: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.white, padding: 15, borderRadius: 12, marginBottom: 8,
+    minHeight: 78,
+    paddingHorizontal: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#EDF1EF",
   },
-  menuLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  menuText: { fontSize: 16, color: colors.text, fontWeight: '500' },
-  langToggle: { backgroundColor: colors.primary + '15', padding: 6, borderRadius: 8 },
-  langText: { color: colors.primary, fontWeight: 'bold', fontSize: 12 },
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15, marginTop: 10 },
-  logoutText: { color: '#ff4757', fontSize: 16, fontWeight: 'bold' },
-  versionText: { textAlign: 'center', color: colors.textMuted, fontSize: 12, marginVertical: 30 },
-  loginBtn: { backgroundColor: colors.primary, padding: 15, borderRadius: 10 },
+
+  menuItemLast: {
+    borderBottomWidth: 0,
+  },
+
+  menuLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+
+  menuIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: LIGHT_GREEN,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+
+  menuTextContainer: {
+    flex: 1,
+  },
+
+  menuLabel: {
+    color: TEXT,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  menuDescription: {
+    color: MUTED,
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  travelCard: {
+    marginHorizontal: 20,
+    marginTop: 24,
+    borderRadius: 24,
+    overflow: "hidden",
+  },
+
+  travelGradient: {
+    minHeight: 130,
+    padding: 19,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  travelIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+
+  travelInfo: {
+    flex: 1,
+  },
+
+  travelLabel: {
+    color: "#F5BD62",
+    fontSize: 8,
+    fontWeight: "800",
+    letterSpacing: 1.3,
+  },
+
+  travelTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+
+  travelDescription: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 10,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+
+  logoutBtn: {
+    minHeight: 74,
+    marginHorizontal: 20,
+    marginTop: 18,
+    paddingHorizontal: 15,
+    borderRadius: 21,
+    backgroundColor: "#FFF3F4",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  logoutIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 14,
+    backgroundColor: "#FFE4E7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+
+  logoutContent: {
+    flex: 1,
+  },
+
+  logoutText: {
+    color: ERROR,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  logoutDescription: {
+    color: "#A77F84",
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  versionText: {
+    textAlign: "center",
+    color: "#A0AAA5",
+    fontSize: 10,
+    marginTop: 22,
+  },
+
+  guestScreen: {
+    flex: 1,
+    backgroundColor: GREEN,
+  },
+
+  guestGradient: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 25,
+  },
+
+  guestLogo: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  guestBrand: {
+    color: "#FFFFFF",
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: 2,
+    marginTop: 14,
+  },
+
+  guestSubtitle: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
+    marginTop: 5,
+  },
+
+  guestCard: {
+    width: "100%",
+    marginTop: 35,
+    padding: 25,
+    borderRadius: 27,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+  },
+
+  guestAvatar: {
+    width: 78,
+    height: 78,
+    borderRadius: 25,
+    backgroundColor: LIGHT_GREEN,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  guestTitle: {
+    color: TEXT,
+    fontSize: 21,
+    fontWeight: "800",
+    marginTop: 14,
+  },
+
+  guestDescription: {
+    color: MUTED,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    marginTop: 6,
+  },
+
+  loginBtn: {
+    width: "100%",
+    height: 53,
+    marginTop: 20,
+    borderRadius: 17,
+    backgroundColor: GREEN,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  loginBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
 });

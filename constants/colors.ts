@@ -22,4 +22,12 @@ export const colors = {
   text: "#212529",
   textLight: "#6c757d",
   textMuted: "#ADB5BD",
+
+  // --- අලුතින් එකතු කළ Weather Gradients ---
+  weather: {
+    clear: ['#f39c12', '#d35400'],   // අව්ව (Orange)
+    cloudy: ['#5d6d7e', '#2c3e50'],  // වලාකුළු (Gray)
+    rainy: ['#2980b9', '#1c2833'],   // වැස්ස (Dark Blue)
+    default: ['#1a5f3f', '#2d8f5f'], // Default (Green)
+  }
 };

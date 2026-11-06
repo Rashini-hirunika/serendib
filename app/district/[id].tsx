@@ -1,51 +1,164 @@
-import { ScrollView, StyleSheet, View, Text, TouchableOpacity, Image, Dimensions, Linking, Platform } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Heart, MapPin, Clock, Download, Check, ExternalLink, Utensils, History, Car } from "lucide-react-native";
-import { getDistrictById } from "@/data/districts";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { useFavorites } from "@/contexts/FavoritesContext";
-import { useOffline } from "@/contexts/OfflineContext";
-import { colors } from "@/constants/colors";
-import { useMemo } from "react";
-import MapView, { Marker } from "react-native-maps";
+import {
+  ScrollView,
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  Dimensions,
+} from "react-native";
 
-const { width: _width } = Dimensions.get("window");
+import {
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
+
+import {
+  ArrowLeft,
+  Heart,
+  MapPin,
+  Download,
+  Check,
+  Utensils,
+  History,
+  Navigation,
+  Compass,
+  Map,
+  Sparkles,
+  ChevronRight,
+} from "lucide-react-native";
+
+import { LinearGradient } from "expo-linear-gradient";
+
+import { getDistrictById } from "../../data/districts";
+import { useFavorites } from "../../contexts/FavoritesContext";
+import { useOffline } from "../../contexts/OfflineContext";
+
+import {
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import MapView, {
+  Marker,
+} from "react-native-maps";
+
+interface Place {
+  name: string;
+  description: string;
+  imageUrl: any;
+  latitude: number;
+  longitude: number;
+}
+
+const { width } = Dimensions.get("window");
+
+const DEFAULT_COORDS = {
+  latitude: 7.8731,
+  longitude: 80.7718,
+};
 
 export default function DistrictDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const { t } = useLanguage();
-  const { toggleFavorite, isFavorite } = useFavorites();
-  const { downloadDistrict, removeDownload, isDownloaded } = useOffline();
+  const { id } =
+    useLocalSearchParams<{ id: string }>();
 
-  const district = useMemo(() => getDistrictById(id), [id]);
+  const router = useRouter();
+
+  const mapRef = useRef<MapView>(null);
+
+  const {
+    toggleFavorite,
+    isFavorite,
+  } = useFavorites();
+
+  const {
+    downloadDistrict,
+    removeDownload,
+    isDownloaded,
+  } = useOffline();
+
+  const district = useMemo(
+    () => getDistrictById(id),
+    [id]
+  );
+
+  const [
+    activeCoords,
+    setActiveCoords,
+  ] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   if (!district) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>District not found</Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.errorBackText}>Go Back</Text>
+        <View style={styles.errorIcon}>
+          <MapPin
+            size={30}
+            color="#1A5F3F"
+          />
+        </View>
+
+        <Text style={styles.errorTitle}>
+          District Not Found
+        </Text>
+
+        <Text style={styles.errorText}>
+          We couldn't find this destination.
+        </Text>
+
+        <TouchableOpacity
+          style={styles.errorButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft
+            size={18}
+            color="#FFFFFF"
+          />
+
+          <Text
+            style={styles.errorButtonText}
+          >
+            Go Back
+          </Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const handleOpenMaps = () => {
-    const { latitude, longitude } = district.coordinates;
-    const url = Platform.select({
-      ios: `maps:0,0?q=${latitude},${longitude}`,
-      android: `geo:0,0?q=${latitude},${longitude}`,
+  const handleOpenMapTap = (
+    place: Place
+  ) => {
+    router.push({
+      pathname: "/(tabs)/map",
+      params: {
+        destLat: place.latitude,
+        destLng: place.longitude,
+        destName: place.name,
+      },
     });
-    if (url) {
-      void Linking.openURL(url);
-    }
   };
 
-  const handleBookHotel = (hotelName: string) => {
-    const query = encodeURIComponent(`${hotelName} ${district.name} Sri Lanka`);
-    const url = `https://www.google.com/search?q=${query}`;
-    void Linking.openURL(url);
+  const handlePlacePress = (
+    place: Place
+  ) => {
+    const targetCoords = {
+      latitude: place.latitude,
+      longitude: place.longitude,
+    };
+
+    setActiveCoords(targetCoords);
+
+    mapRef.current?.animateToRegion(
+      {
+        ...targetCoords,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      },
+      1000
+    );
   };
 
   const handleDownloadToggle = () => {
@@ -56,173 +169,690 @@ export default function DistrictDetailScreen() {
     }
   };
 
+  const districtCoords =
+    district.coordinates ??
+    DEFAULT_COORDS;
+
+  const markerCoords =
+    activeCoords ?? districtCoords;
+
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.headerImageContainer}>
-          <Image source={{ uri: district.imageUrl }} style={styles.headerImage} />
-          <View style={styles.overlay} />
-          
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <ArrowLeft size={24} color="#fff" />
-          </TouchableOpacity>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        contentContainerStyle={{
+          paddingBottom: 70,
+        }}
+      >
+        {/* HERO */}
+        <View style={styles.heroContainer}>
+          <Image
+            source={{
+              uri: district.imageUrl,
+            }}
+            style={styles.heroImage}
+          />
+
+          <LinearGradient
+            colors={[
+              "rgba(0,0,0,0.05)",
+              "rgba(0,0,0,0.20)",
+              "rgba(5,32,21,0.92)",
+            ]}
+            style={
+              StyleSheet.absoluteFillObject
+            }
+          />
 
           <TouchableOpacity
-            style={styles.heartButton}
-            onPress={() => toggleFavorite(district.id)}
+            style={styles.backButton}
+            activeOpacity={0.8}
+            onPress={() => router.back()}
           >
-            <Heart
-              size={24}
-              color={isFavorite(district.id) ? "#ff4757" : "#fff"}
-              fill={isFavorite(district.id) ? "#ff4757" : "transparent"}
+            <ArrowLeft
+              size={23}
+              color="#FFFFFF"
             />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.downloadButton}
-            onPress={handleDownloadToggle}
-          >
-            {isDownloaded(district.id) ? (
-              <Check size={24} color="#2ecc71" />
-            ) : (
-              <Download size={24} color="#fff" />
-            )}
-          </TouchableOpacity>
+          <View style={styles.topActions}>
+            <TouchableOpacity
+              style={
+                styles.heroIconButton
+              }
+              activeOpacity={0.8}
+              onPress={
+                handleDownloadToggle
+              }
+            >
+              {isDownloaded(
+                district.id
+              ) ? (
+                <Check
+                  size={21}
+                  color="#A7E8BE"
+                />
+              ) : (
+                <Download
+                  size={21}
+                  color="#FFFFFF"
+                />
+              )}
+            </TouchableOpacity>
 
-          <View style={styles.headerContent}>
-            <Text style={styles.name}>{district.name}</Text>
-            <Text style={styles.localNames}>
-              {district.nameSinhala} · {district.nameTamil}
+            <TouchableOpacity
+              style={
+                styles.heroIconButton
+              }
+              activeOpacity={0.8}
+              onPress={() =>
+                toggleFavorite(
+                  district.id
+                )
+              }
+            >
+              <Heart
+                size={21}
+                color={
+                  isFavorite(
+                    district.id
+                  )
+                    ? "#FF5A6D"
+                    : "#FFFFFF"
+                }
+                fill={
+                  isFavorite(
+                    district.id
+                  )
+                    ? "#FF5A6D"
+                    : "transparent"
+                }
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.heroContent}>
+            <View
+              style={
+                styles.destinationBadge
+              }
+            >
+              <Sparkles
+                size={12}
+                color="#F3B456"
+              />
+
+              <Text
+                style={
+                  styles.destinationBadgeText
+                }
+              >
+                DISCOVER
+              </Text>
+            </View>
+
+            <Text
+              style={styles.districtName}
+            >
+              {district.name}
             </Text>
-            <View style={styles.locationRow}>
-              <MapPin size={16} color="#fff" />
-              <Text style={styles.province}>{district.province}</Text>
+
+            <View
+              style={
+                styles.heroLocationRow
+              }
+            >
+              <MapPin
+                size={15}
+                color="#FFFFFF"
+              />
+
+              <Text
+                style={
+                  styles.heroProvince
+                }
+              >
+                {district.province} Province
+              </Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.content}>
-          <Text style={styles.description}>{district.description}</Text>
+        {/* QUICK ACTIONS */}
+        <View
+          style={
+            styles.quickActionsCard
+          }
+        >
+          <TouchableOpacity
+            style={styles.quickAction}
+            activeOpacity={0.8}
+            onPress={() =>
+              handleOpenMapTap({
+                name: district.name,
+                latitude:
+                  districtCoords.latitude,
+                longitude:
+                  districtCoords.longitude,
+                description: "",
+                imageUrl: "",
+              })
+            }
+          >
+            <View
+              style={[
+                styles.quickActionIcon,
+                styles.quickActionIconActive,
+              ]}
+            >
+              <Navigation
+                size={19}
+                color="#FFFFFF"
+              />
+            </View>
 
-          <TouchableOpacity style={styles.mapButton} onPress={handleOpenMaps}>
-            <MapPin size={20} color="#fff" />
-            <Text style={styles.mapButtonText}>{t("viewOnMap")}</Text>
+            <Text
+              style={
+                styles.quickActionText
+              }
+            >
+              Directions
+            </Text>
           </TouchableOpacity>
 
-          {district.coordinates && (
-            <View style={styles.mapContainer}>
-              <MapView
-                style={styles.map}
-                initialRegion={{
-                  latitude: district.coordinates.latitude,
-                  longitude: district.coordinates.longitude,
-                  latitudeDelta: 0.5,
-                  longitudeDelta: 0.5,
-                }}
-              >
-                <Marker
-                  coordinate={{
-                    latitude: district.coordinates.latitude,
-                    longitude: district.coordinates.longitude,
-                  }}
-                  title={district.name}
-                />
-              </MapView>
-            </View>
-          )}
+          <View
+            style={styles.quickDivider}
+          />
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <MapPin size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>{t("topPlaces")}</Text>
+          <TouchableOpacity
+            style={styles.quickAction}
+            activeOpacity={0.8}
+            onPress={
+              handleDownloadToggle
+            }
+          >
+            <View
+              style={
+                styles.quickActionIcon
+              }
+            >
+              {isDownloaded(
+                district.id
+              ) ? (
+                <Check
+                  size={19}
+                  color="#1A5F3F"
+                />
+              ) : (
+                <Download
+                  size={19}
+                  color="#1A5F3F"
+                />
+              )}
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {district.topPlaces.map((place, index) => (
-                <View key={index} style={styles.placeCard}>
-                  <Image source={{ uri: place.imageUrl }} style={styles.placeImage} />
-                  <View style={styles.placeOverlay} />
-                  <View style={styles.placeContent}>
-                    <Text style={styles.placeName}>{place.name}</Text>
-                    <Text style={styles.placeDescription} numberOfLines={2}>
-                      {place.description}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
+
+            <Text
+              style={
+                styles.quickActionText
+              }
+            >
+              {isDownloaded(
+                district.id
+              )
+                ? "Offline"
+                : "Download"}
+            </Text>
+          </TouchableOpacity>
+
+          <View
+            style={styles.quickDivider}
+          />
+
+          <TouchableOpacity
+            style={styles.quickAction}
+            activeOpacity={0.8}
+            onPress={() =>
+              toggleFavorite(
+                district.id
+              )
+            }
+          >
+            <View
+              style={
+                styles.quickActionIcon
+              }
+            >
+              <Heart
+                size={19}
+                color={
+                  isFavorite(
+                    district.id
+                  )
+                    ? "#FF5364"
+                    : "#1A5F3F"
+                }
+                fill={
+                  isFavorite(
+                    district.id
+                  )
+                    ? "#FF5364"
+                    : "transparent"
+                }
+              />
+            </View>
+
+            <Text
+              style={
+                styles.quickActionText
+              }
+            >
+              {isFavorite(
+                district.id
+              )
+                ? "Saved"
+                : "Favorite"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ABOUT */}
+        <View style={styles.section}>
+          <View
+            style={
+              styles.smallLabelRow
+            }
+          >
+            <Compass
+              size={14}
+              color="#E48A32"
+            />
+
+            <Text
+              style={styles.smallLabel}
+            >
+              ABOUT DESTINATION
+            </Text>
           </View>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Clock size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>{t("hotels")}</Text>
+          <Text style={styles.mainTitle}>
+            Discover {district.name}
+          </Text>
+
+          <Text
+            style={styles.description}
+          >
+            {district.description}
+          </Text>
+        </View>
+
+        {/* TOP ATTRACTIONS */}
+        <View style={styles.section}>
+          <View
+            style={
+              styles.sectionHeadingRow
+            }
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={
+                  styles.headingTitle
+                }
+              >
+                Top Attractions
+              </Text>
+
+              <Text
+                style={
+                  styles.sectionSubtitle
+                }
+              >
+                Places you shouldn't miss
+              </Text>
             </View>
-            {district.hotels.map((hotel, index) => (
-              <View key={index} style={styles.hotelCard}>
-                <View style={styles.hotelInfo}>
-                  <View style={styles.hotelHeader}>
-                    <Text style={styles.hotelName}>{hotel.name}</Text>
-                    <View
-                      style={[
-                        styles.typeBadge,
-                        { backgroundColor: hotel.type === "luxury" ? colors.luxury : colors.budget },
-                      ]}
+
+            <View
+              style={styles.sectionIcon}
+            >
+              <MapPin
+                size={19}
+                color="#1A5F3F"
+              />
+            </View>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={
+              false
+            }
+            contentContainerStyle={
+              styles.placeScroll
+            }
+          >
+            {district.topPlaces.map(
+              (
+                place: Place,
+                index: number
+              ) => (
+                <TouchableOpacity
+                  key={`${place.name}-${index}`}
+                  style={styles.placeCard}
+                  activeOpacity={0.9}
+                  onPress={() =>
+                    handleOpenMapTap(
+                      place
+                    )
+                  }
+                  onLongPress={() =>
+                    handlePlacePress(
+                      place
+                    )
+                  }
+                >
+                  <Image
+                    source={{
+                      uri:
+                        place.imageUrl,
+                    }}
+                    style={
+                      styles.placeImage
+                    }
+                  />
+
+                  <LinearGradient
+                    colors={[
+                      "transparent",
+                      "rgba(0,0,0,0.08)",
+                      "rgba(0,0,0,0.85)",
+                    ]}
+                    style={
+                      StyleSheet.absoluteFillObject
+                    }
+                  />
+
+                  <View
+                    style={
+                      styles.placeNumber
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.placeNumberText
+                      }
                     >
-                      <Text style={styles.typeText}>
-                        {hotel.type === "luxury" ? t("luxury") : t("budget")}
+                      {String(
+                        index + 1
+                      ).padStart(
+                        2,
+                        "0"
+                      )}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.placeContent
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.placeName
+                      }
+                      numberOfLines={2}
+                    >
+                      {place.name}
+                    </Text>
+
+                    <View
+                      style={
+                        styles.placeAction
+                      }
+                    >
+                      <Navigation
+                        size={11}
+                        color="#FFFFFF"
+                      />
+
+                      <Text
+                        style={
+                          styles.placeActionText
+                        }
+                      >
+                        Get Route
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.hotelDescription}>{hotel.description}</Text>
-                  <Text style={styles.hotelPrice}>{hotel.priceRange}</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.bookButton}
-                  onPress={() => handleBookHotel(hotel.name)}
-                >
-                  <Text style={styles.bookButtonText}>{t("bookHotel")}</Text>
-                  <ExternalLink size={16} color="#fff" />
                 </TouchableOpacity>
+              )
+            )}
+          </ScrollView>
+
+          <Text style={styles.holdHint}>
+            Tap for directions • Hold to preview on the map
+          </Text>
+        </View>
+
+        {/* MAP */}
+        <View style={styles.section}>
+          <View
+            style={
+              styles.sectionHeadingRow
+            }
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={
+                  styles.headingTitle
+                }
+              >
+                Explore on Map
+              </Text>
+
+              <Text
+                style={
+                  styles.sectionSubtitle
+                }
+              >
+                Find your way around
+              </Text>
+            </View>
+
+            <View
+              style={styles.sectionIcon}
+            >
+              <Map
+                size={19}
+                color="#1A5F3F"
+              />
+            </View>
+          </View>
+
+          <View
+            style={styles.mapContainer}
+          >
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              scrollEnabled
+              zoomEnabled
+              initialRegion={{
+                ...districtCoords,
+                latitudeDelta: 0.1,
+                longitudeDelta: 0.1,
+              }}
+            >
+              <Marker
+                coordinate={markerCoords}
+                title={district.name}
+              />
+            </MapView>
+
+            <TouchableOpacity
+              style={
+                styles.directionButton
+              }
+              activeOpacity={0.9}
+              onPress={() =>
+                handleOpenMapTap({
+                  name: district.name,
+                  latitude:
+                    districtCoords.latitude,
+                  longitude:
+                    districtCoords.longitude,
+                  description: "",
+                  imageUrl: "",
+                })
+              }
+            >
+              <View
+                style={
+                  styles.directionIcon
+                }
+              >
+                <Navigation
+                  size={17}
+                  color="#1A5F3F"
+                />
               </View>
-            ))}
-          </View>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <History size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>{t("history")}</Text>
-            </View>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoText}>{district.historicalSignificance}</Text>
-            </View>
-          </View>
+              <Text
+                style={
+                  styles.directionText
+                }
+              >
+                Get Directions
+              </Text>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Utensils size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>{t("food")}</Text>
-            </View>
-            <View style={styles.foodContainer}>
-              {district.mustTryFood.map((food, index) => (
-                <View key={index} style={styles.foodChip}>
-                  <Text style={styles.foodText}>{food}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Car size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>{t("route")}</Text>
-            </View>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoText}>{district.travelRoute}</Text>
-            </View>
+              <ChevronRight
+                size={18}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.footer} />
+        {/* HISTORY */}
+        <View style={styles.section}>
+          <View style={styles.infoCard}>
+            <View
+              style={
+                styles.infoCardHeader
+              }
+            >
+              <View
+                style={
+                  styles.historyIcon
+                }
+              >
+                <History
+                  size={22}
+                  color="#1A5F3F"
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={
+                    styles.infoEyebrow
+                  }
+                >
+                  STORY & HERITAGE
+                </Text>
+
+                <Text
+                  style={
+                    styles.infoTitle
+                  }
+                >
+                  Historical Significance
+                </Text>
+              </View>
+            </View>
+
+            <Text
+              style={styles.infoText}
+            >
+              {
+                district.historicalSignificance
+              }
+            </Text>
+          </View>
+        </View>
+
+        {/* FOOD */}
+        <View
+          style={[
+            styles.section,
+            styles.lastSection,
+          ]}
+        >
+          <View
+            style={
+              styles.sectionHeadingRow
+            }
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={
+                  styles.headingTitle
+                }
+              >
+                Must Try Food
+              </Text>
+
+              <Text
+                style={
+                  styles.sectionSubtitle
+                }
+              >
+                Taste local favorites
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.sectionIcon,
+                styles.foodIconBox,
+              ]}
+            >
+              <Utensils
+                size={19}
+                color="#E48A32"
+              />
+            </View>
+          </View>
+
+          <View style={styles.foodGrid}>
+            {district.mustTryFood.map(
+              (
+                food: string,
+                index: number
+              ) => (
+                <View
+                  key={`${food}-${index}`}
+                  style={
+                    styles.foodChip
+                  }
+                >
+                  <View
+                    style={
+                      styles.foodDot
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.foodText
+                    }
+                  >
+                    {food}
+                  </Text>
+                </View>
+              )
+            )}
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -231,262 +861,480 @@ export default function DistrictDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#F4F7F5",
   },
+
   errorContainer: {
     flex: 1,
+    backgroundColor: "#F4F7F5",
     alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+    padding: 30,
   },
+
+  errorIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 24,
+    backgroundColor: "#E7F2EB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
+  },
+
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#24322C",
+  },
+
   errorText: {
-    fontSize: 18,
-    color: colors.error,
-    marginBottom: 16,
+    marginTop: 6,
+    color: "#8A948F",
+    fontSize: 14,
   },
-  errorBackText: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: "600",
+
+  errorButton: {
+    marginTop: 24,
+    paddingHorizontal: 22,
+    paddingVertical: 13,
+    borderRadius: 16,
+    backgroundColor: "#1A5F3F",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  headerImageContainer: {
-    height: 320,
+
+  errorButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+
+  heroContainer: {
+    width: "100%",
+    height: 430,
     position: "relative",
+    overflow: "hidden",
+    borderBottomLeftRadius: 38,
+    borderBottomRightRadius: 38,
   },
-  headerImage: {
+
+  heroImage: {
     width: "100%",
     height: "100%",
+    position: "absolute",
   },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
+
   backButton: {
     position: "absolute",
-    top: 60,
-    left: 16,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    borderRadius: 8,
-    padding: 8,
+    top: 52,
+    left: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor:
+      "rgba(0,0,0,0.32)",
+    borderWidth: 1,
+    borderColor:
+      "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
   },
-  heartButton: {
+
+  topActions: {
     position: "absolute",
-    top: 60,
-    right: 16,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    borderRadius: 8,
-    padding: 8,
+    top: 52,
+    right: 20,
+    flexDirection: "row",
+    gap: 10,
+    zIndex: 10,
   },
-  downloadButton: {
+
+  heroIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor:
+      "rgba(0,0,0,0.32)",
+    borderWidth: 1,
+    borderColor:
+      "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  heroContent: {
     position: "absolute",
-    top: 60,
-    right: 64,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    borderRadius: 8,
-    padding: 8,
+    left: 22,
+    right: 22,
+    bottom: 50,
   },
-  headerContent: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-  },
-  name: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  localNames: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 4,
-  },
-  locationRow: {
+
+  destinationBadge: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
+    backgroundColor:
+      "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor:
+      "rgba(255,255,255,0.20)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 10,
+  },
+
+  destinationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    marginLeft: 5,
+  },
+
+  districtName: {
+    color: "#FFFFFF",
+    fontSize: 38,
+    fontWeight: "800",
+    lineHeight: 44,
+    maxWidth: width - 60,
+  },
+
+  heroLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 9,
     gap: 6,
   },
-  province: {
-    fontSize: 16,
-    color: "#fff",
-  },
-  content: {
-    padding: 16,
-  },
-  description: {
-    fontSize: 16,
-    color: colors.text,
-    lineHeight: 24,
-    marginBottom: 16,
-  },
-  mapButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 8,
-    marginBottom: 16,
-  },
-  mapButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  mapContainer: {
-    height: 200,
-    borderRadius: 12,
-    overflow: "hidden",
-    marginBottom: 16,
-  },
-  map: {
-    width: "100%",
-    height: "100%",
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: colors.text,
-  },
-  placeCard: {
-    width: 220,
-    height: 160,
-    borderRadius: 12,
-    overflow: "hidden",
-    marginRight: 12,
-  },
-  placeImage: {
-    width: "100%",
-    height: "100%",
-  },
-  placeOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  placeContent: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 12,
-  },
-  placeName: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  placeDescription: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.9)",
-    marginTop: 4,
-  },
-  hotelCard: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  hotelInfo: {
-    marginBottom: 12,
-  },
-  hotelHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  hotelName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-    flex: 1,
-  },
-  typeBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 8,
-  },
-  typeText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  hotelDescription: {
-    fontSize: 14,
-    color: colors.textLight,
-    lineHeight: 20,
-  },
-  hotelPrice: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: "600",
-    marginTop: 8,
-  },
-  bookButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.accent,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 8,
-  },
-  bookButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  infoCard: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  infoText: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 22,
-  },
-  foodContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  foodChip: {
-    backgroundColor: colors.accentLight,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  foodText: {
-    color: colors.primaryDark,
+
+  heroProvince: {
+    color:
+      "rgba(255,255,255,0.90)",
     fontSize: 14,
     fontWeight: "500",
   },
-  footer: {
-    height: 32,
+
+  quickActionsCard: {
+    height: 90,
+    marginHorizontal: 20,
+    marginTop: -28,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    elevation: 10,
+    shadowColor: "#000000",
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
+    zIndex: 20,
+  },
+
+  quickAction: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  quickActionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: "#EAF4EE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  quickActionIconActive: {
+    backgroundColor: "#1A5F3F",
+  },
+
+  quickActionText: {
+    color: "#47534D",
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  quickDivider: {
+    height: 42,
+    width: 1,
+    backgroundColor: "#E8ECEA",
+  },
+
+  section: {
+    marginTop: 32,
+  },
+
+  lastSection: {
+    marginBottom: 20,
+  },
+
+  smallLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 20,
+    marginBottom: 7,
+  },
+
+  smallLabel: {
+    color: "#E48A32",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    marginLeft: 6,
+  },
+
+  mainTitle: {
+    marginHorizontal: 20,
+    color: "#24322C",
+    fontSize: 23,
+    fontWeight: "800",
+  },
+
+  description: {
+    marginHorizontal: 20,
+    marginTop: 11,
+    color: "#66716B",
+    fontSize: 15,
+    lineHeight: 24,
+  },
+
+  sectionHeadingRow: {
+    marginHorizontal: 20,
+    marginBottom: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent:
+      "space-between",
+  },
+
+  headingTitle: {
+    color: "#24322C",
+    fontSize: 22,
+    fontWeight: "800",
+  },
+
+  sectionSubtitle: {
+    color: "#8A948F",
+    fontSize: 12,
+    marginTop: 4,
+  },
+
+  sectionIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 15,
+    backgroundColor: "#E8F3EC",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
+
+  placeScroll: {
+    paddingHorizontal: 20,
+    gap: 14,
+  },
+
+  placeCard: {
+    width: width * 0.66,
+    height: 210,
+    borderRadius: 25,
+    overflow: "hidden",
+    backgroundColor: "#D8DFDB",
+    elevation: 4,
+  },
+
+  placeImage: {
+    width: "100%",
+    height: "100%",
+    position: "absolute",
+  },
+
+  placeNumber: {
+    position: "absolute",
+    top: 13,
+    left: 13,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor:
+      "rgba(255,255,255,0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  placeNumberText: {
+    color: "#1A5F3F",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+
+  placeContent: {
+    position: "absolute",
+    left: 15,
+    right: 15,
+    bottom: 14,
+  },
+
+  placeName: {
+    color: "#FFFFFF",
+    fontSize: 19,
+    fontWeight: "800",
+    lineHeight: 23,
+  },
+
+  placeAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 7,
+  },
+
+  placeActionText: {
+    marginLeft: 5,
+    color:
+      "rgba(255,255,255,0.82)",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+
+  holdHint: {
+    marginHorizontal: 20,
+    marginTop: 9,
+    color: "#9AA39F",
+    fontSize: 10,
+  },
+
+  mapContainer: {
+    height: 285,
+    marginHorizontal: 20,
+    borderRadius: 26,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "#DDE5E0",
+    elevation: 4,
+  },
+
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  directionButton: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 15,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: "#1A5F3F",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    elevation: 6,
+  },
+
+  directionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  directionText: {
+    flex: 1,
+    marginLeft: 11,
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  infoCard: {
+    marginHorizontal: 20,
+    padding: 20,
+    borderRadius: 25,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5EBE7",
+    elevation: 2,
+  },
+
+  infoCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+
+  historyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#E8F3EC",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 13,
+  },
+
+  infoEyebrow: {
+    color: "#E48A32",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.3,
+    marginBottom: 3,
+  },
+
+  infoTitle: {
+    color: "#24322C",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+
+  infoText: {
+    color: "#65716B",
+    fontSize: 14,
+    lineHeight: 23,
+  },
+
+  foodIconBox: {
+    backgroundColor: "#FFF5E8",
+  },
+
+  foodGrid: {
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 9,
+  },
+
+  foodChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E3EAE6",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+
+  foodDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#E48A32",
+    marginRight: 7,
+  },
+
+  foodText: {
+    color: "#45524C",
+    fontSize: 13,
+    fontWeight: "600",
   },
 });
